@@ -1,0 +1,102 @@
+<html>
+<script src="https://code.jquery.com/jquery-2.2.3.min.js" integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo=" crossorigin="anonymous"></script>
+<script charset="UTF-8" type="text/javascript" src="http://ecn.dev.virtualearth.net/mapcontrol/mapcontrol.ashx?v=7.0"></script>
+
+<div style="float:left;">
+	<textarea id="mySource" style="width:600px;height:500px;"></textarea>
+</div>
+<div id="myConsole" style="border:1px solid #ccc; width:400px; height:500px; float:left;margin-left:30px;">
+</div>
+<div style="width:100%;height:40px;float:left;">
+	<button id="btn-submit">Submit</button>
+</div>
+
+<script>
+
+    $(document).ready(function () {
+		$('#btn-submit').click(function(){
+			var src = $('#mySource').val();
+			var lines = getLines(src);
+			var nLines = lines.length;
+			var nPrivFuncs = 0;
+			var funcs = [];
+			var methods = [];
+			var nMethods = 0;
+			
+			for(var i=0; i<nLines; i++){
+				var line = lines[i];
+				var f = getPrivateFunc(line);
+				var m = getPublicFunc(line);
+				
+				if(f){
+					nPrivFuncs += f.length;
+					
+					for(var j=0; j<f.length; j++){
+						funcs.push( getPrivateFuncName(f[j]));
+					}
+				}
+				
+				if(m){
+					nMethods += m.length;
+					for(var j=0; j<m.length; j++){
+						methods.push(getPublicFuncName(m[j]));
+					}
+				}
+			}
+			
+			$('#myConsole').empty();
+
+			
+			for(var i=0; i<funcs.length; i++){
+				$('#myConsole').prepend('<div>' + funcs[i] + '</div>');
+			}
+						
+			$('#myConsole').prepend('<div>Private Functions:' + nPrivFuncs + '</div>');
+			for(var i=0; i<methods.length; i++){
+				$('#myConsole').prepend('<div>' + methods[i] + '</div>');
+			}
+			$('#myConsole').prepend('<div>Public Functions:' + nMethods + '</div>');
+			$('#myConsole').prepend('<div>Lines:' + nLines + '</div>');
+		});
+		
+		function getLines(s){
+			return s.split('\n');
+		}
+		
+		function getPrivateFunc(s){
+			var m = s.match(/function[\s]+[$a-zA-Z_][a-zA-Z0-9_$]*/g);
+			if(m){
+				return m;
+			}else{
+				return null;
+			}
+		}
+		
+		function getPrivateFuncName(s){
+			return s.replace(/function[\s]+/g, '');
+		}
+		
+		function getPublicFunc(s){
+			var m = s.match(/this.[$a-zA-Z_][a-zA-Z0-9_$]*[\s]+\=[\s]+function/g);
+			if(m){
+				return m;
+			}else{
+				return null;
+			}
+		}
+		
+		function getPublicFuncName(s){
+			var a = s.split('=');
+			if(a && a.length>0){
+				return a[0].replace(/this\./g, '').replace(/[\s]+/g, '');
+			}else{
+				return null;
+			}
+		}
+		
+    });
+    
+
+
+</script>
+</html>
