@@ -40,17 +40,8 @@
 		
 		var _inComment = false;
 		
-		
-		function process(src){
-			var lines = getLines(src);
-			var nLines = lines.length;
-			var nPrivFuncs = 0;
-			var funcs = [];
-			var methods = [];
-			var nMethods = 0;
-			var inComment = false;
-			
-			for(var i=0; i<nLines; i++){
+		function processComment(){
+		for(var i=0; i<nLines; i++){
 				if(!inComment){
 					var ret = processComment(lines[i]);
 					if(ret.startComment){
@@ -85,7 +76,40 @@
 					}
 				}
 			}
+		}
+		
+		function process(src){
+			var lines = getLines(src);
+			var nLines = lines.length;
+			var nPrivFuncs = 0;
+			var funcs = [];
+			var methods = [];
+			var nMethods = 0;
+			var inComment = false;
 			
+			var i = 0;
+			var done = false;
+			
+			while( i < nLines && !done){
+				var ret = rmLineBlockComments(lines[i]);
+				
+				while(ret.inBlock){
+					ret = rmBlockComment(i, lines, ret.inBlock);
+					if(ret){
+						if(ret.hasOwnProperty('lineEnd') && i != -1){
+							i = ret.endLine;
+						}else{
+							done = true;
+						}
+					}else{
+						// do nothing
+					}
+				}
+				i++;
+				console.log(ret);
+			}
+			
+			/*
 			$('#myConsole').empty();
 
 			
@@ -99,6 +123,7 @@
 			}
 			$('#myConsole').prepend('<div>Public Functions:' + nMethods + '</div>');
 			$('#myConsole').prepend('<div>Lines:' + nLines + '</div>');
+			*/
 		}
 		
 		function getLines(s){
@@ -107,6 +132,68 @@
 		
 		function ltrim(s){
 			return s.replace(/^\s+/,"");
+		}
+
+		function rmBlockComment(start, lines, inBlock) {
+			var i = start;
+
+			while (inBlock) {
+				var line = lines[i];
+				var k = line.indexOf('*/');
+				if (k != -1) {
+					lines[i] = line.substring(k + 2, line.length);
+					inBlock = false;
+					var ret = rmLineBlockComments(lines[i]);
+					lines[i] = ret.remain;
+					ret['lineEnd'] = i;
+					inBlock = ret.inBlock;
+				} else {
+					lines[i] = '';
+					i++;
+					if (i >= lines.length - 1) {
+						return { 'done': true, 'remain': s, 'inBlock': false, 'lineEnd': lines.length - 1 };
+					}
+				}
+			}
+		}
+
+		function rmLineBlockComments(line) {
+			var ret = findLineBlockComment(line);
+			while (!ret.done) {
+				ret = findLineBlockComment(ret.remain);
+			}
+			return ret;
+		}
+
+		function findLineBlockComment(s) {
+			var len = s.length;
+			var a = [];
+			var i = s.indexOf('/');
+
+			if (i != -1) {
+				if (i + 1 < len) {
+					if (s[i + 1] == '/') {
+						return { done: true, remain: s.substring(0, i), 'inBlock': false };
+					} else if (s[i + 1] == '*') {
+						var j = s.indexOf('*/');
+						if (j != -1) {
+							return ({ 'done': false, 'remain': s.substring(0, i) + s.substring(j + 2, len), 'inBlock': false });
+						} else {
+							return { 'done': true, 'remain': s.substring(0, i), 'inBlock': true };
+						}
+					} else {
+						var head = s.substring(0, i + 2);
+						var tail = s.substring(i + 2, len);
+						var ret = findLineBlockComment(tail);
+						ret.remain = head + ret.remain;
+						return ret;
+					}
+				} else {
+					return { 'done': true, 'remain': s, 'inBlock': false };
+				}
+			} else {
+				return { 'done': true, 'remain': s, 'inBlock': false };
+			}
 		}
 		
 		function processComment(line){
