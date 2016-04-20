@@ -193,6 +193,15 @@
 			return lines;
 		}
 		
+		'var my = function (a, b){return a;}'
+		function getFuncExpression(s){
+			var m = s.match( /var [$a-zA-Z_][a-zA-Z0-9_$]*[\s]+=[\s]*function[\s]*\(/g);
+			if(m){
+				return m;
+			}else{
+				return null;
+			}
+		}
 		
 		
 		function getPrivateFunc(s){
