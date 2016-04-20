@@ -35,83 +35,56 @@
     $(document).ready(function () {
 		$('#btn-submit').click(function(){
 			var src = $('#mySource').val();
-			process(src);
+			var lines = getLines(src);
+			process(lines);
 		});
 		
 		var _inComment = false;
+		var _cmts = [];
 		
-		function processComment(){
-		for(var i=0; i<nLines; i++){
-				if(!inComment){
-					var ret = processComment(lines[i]);
-					if(ret.startComment){
-						inComment = true;
-					}else{
-						var line = ret.remain;
-						var f = getPrivateFunc(line);
-						var m = getPublicFunc(line);
-						
-						if(f){
-							nPrivFuncs += f.length;
-							
-							for(var j=0; j<f.length; j++){
-								funcs.push( getPrivateFuncName(f[j]));
-							}
-						}
-						
-						if(m){
-							nMethods += m.length;
-							for(var j=0; j<m.length; j++){
-								methods.push(getPublicFuncName(m[j]));
-							}
-						}
+		function processFunctions(lines){
+			var nLines = lines.length;
+			
+			for(var i=0; i<nLines; i++){
+				var line = lines[i];
+				var f = getPrivateFunc(line);
+				var m = getPublicFunc(line);
+				
+				if(f){
+					nPrivFuncs += f.length;
+					
+					for(var j=0; j<f.length; j++){
+						funcs.push( getPrivateFuncName(f[j]));
 					}
-				}else{
-					var j = lines[i].indexOf('*/');
-					if(j!=-1){
-						lines[i] = lines[i].substring(j + 2, s.length);
-						// Fix me !!!
-					}else{
-						lines[i] == '';
+				}
+				
+				if(m){
+					nMethods += m.length;
+					for(var j=0; j<m.length; j++){
+						methods.push(getPublicFuncName(m[j]));
 					}
 				}
 			}
 		}
 		
-		function process(src){
-			var lines = getLines(src);
-			var nLines = lines.length;
+		//var lines = ['/* // abc */ abc /* cd', 'e/', '/f', 'gh // */i/* jk */' ];
+		//process(lines);
+		
+		function process(lines){
 			var nPrivFuncs = 0;
 			var funcs = [];
 			var methods = [];
 			var nMethods = 0;
-			var inComment = false;
 			
-			var i = 0;
-			var done = false;
+			findBlockComment(0,0, lines);
+			lines = rmBlockComments(lines);
+			processFunctions(lines);
 			
-			while( i < nLines && !done){
-				var ret = rmLineBlockComments(lines[i]);
-				
-				while(ret.inBlock){
-					ret = rmBlockComment(i, lines, ret.inBlock);
-					if(ret){
-						if(ret.hasOwnProperty('lineEnd') && i != -1){
-							i = ret.endLine;
-						}else{
-							done = true;
-						}
-					}else{
-						// do nothing
-					}
-				}
-				i++;
-				console.log(ret);
-			}
-			
-			/*
 			$('#myConsole').empty();
 
+			//for(var i=0; i<lines.length; i++){
+			//	$('#myConsole').prepend('<div>' + lines[i] + '</div>');
+			//}
 			
 			for(var i=0; i<funcs.length; i++){
 				$('#myConsole').prepend('<div>' + funcs[i] + '</div>');
@@ -122,8 +95,7 @@
 				$('#myConsole').prepend('<div>' + methods[i] + '</div>');
 			}
 			$('#myConsole').prepend('<div>Public Functions:' + nMethods + '</div>');
-			$('#myConsole').prepend('<div>Lines:' + nLines + '</div>');
-			*/
+			$('#myConsole').prepend('<div>Lines:' + lines.length + '</div>');
 		}
 		
 		function getLines(s){
@@ -133,124 +105,92 @@
 		function ltrim(s){
 			return s.replace(/^\s+/,"");
 		}
+		
+		// row -- start row index
+		// col -- start col index
+		function findCommentHead(row, col, lines){
+			var i = row;
+			var line = lines[i];
+			var len = line.length;
+			var j = line.substring(col, len).indexOf('/');
 
-		function rmBlockComment(start, lines, inBlock) {
-			var i = start;
-
-			while (inBlock) {
-				var line = lines[i];
-				var k = line.indexOf('*/');
-				if (k != -1) {
-					lines[i] = line.substring(k + 2, line.length);
-					inBlock = false;
-					var ret = rmLineBlockComments(lines[i]);
-					lines[i] = ret.remain;
-					ret['lineEnd'] = i;
-					inBlock = ret.inBlock;
-				} else {
-					lines[i] = '';
-					i++;
-					if (i >= lines.length - 1) {
-						return { 'done': true, 'remain': s, 'inBlock': false, 'lineEnd': lines.length - 1 };
+			if (j != -1) {
+				j += col;
+				if (j + 1 < len) {
+					if (line[j + 1] == '/') {
+						return false;//{type:'LINE', beginCol: i};
+					} else if (line[j + 1] == '*') {
+						return {type:'BLOCK', 'beginRow':i, 'beginCol':j};
 					}
 				}
 			}
+			return false;
 		}
-
-		function rmLineBlockComments(line) {
-			var ret = findLineBlockComment(line);
-			while (!ret.done) {
-				ret = findLineBlockComment(ret.remain);
-			}
-			return ret;
-		}
-
-		function findLineBlockComment(s) {
-			var len = s.length;
-			var a = [];
-			var i = s.indexOf('/');
-
-			if (i != -1) {
-				if (i + 1 < len) {
-					if (s[i + 1] == '/') {
-						return { done: true, remain: s.substring(0, i), 'inBlock': false };
-					} else if (s[i + 1] == '*') {
-						var j = s.indexOf('*/');
-						if (j != -1) {
-							return ({ 'done': false, 'remain': s.substring(0, i) + s.substring(j + 2, len), 'inBlock': false });
-						} else {
-							return { 'done': true, 'remain': s.substring(0, i), 'inBlock': true };
-						}
-					} else {
-						var head = s.substring(0, i + 2);
-						var tail = s.substring(i + 2, len);
-						var ret = findLineBlockComment(tail);
-						ret.remain = head + ret.remain;
-						return ret;
+		
+		// row -- start row index
+		// col -- start col index
+		function findCommentTail(row, col, lines){
+			var i = row;
+			var line = lines[row];
+			var len = lines.length;
+			var sub = line.substring(col + 2, line.length);
+			var j = sub.indexOf('*/');
+			var found = false;
+			if(j!=-1){
+				return {type:'BLOCK', 'beginRow':row, 'beginCol':col, 'endRow': row, 'endCol': col+2+j };
+			}else{
+				i++;
+				while(i<len && !found){
+					line = lines[i];
+					var k = line.indexOf('*/');
+					if (k != -1) {
+						return {type:'BLOCK', 'beginRow':row, 'beginCol':col, 'endRow': i, 'endCol': k };
+					}else{
+						i++;
 					}
-				} else {
-					return { 'done': true, 'remain': s, 'inBlock': false };
 				}
-			} else {
-				return { 'done': true, 'remain': s, 'inBlock': false };
+				console.log('could not find the end of */');
+				return false;
 			}
 		}
 		
-		function processComment(line){
-			var i = line.indexOf('//');
-			var s = line;
-			if(i!=-1){
-				s = line.substring(0, i);
-			}
-			
-			var r = findComment(s);
-			var remain = s;
-			while(r.found && r.end != -1){
-				remain = s.substring(0, r.start) + s.substring(r.end + 2, s.length);
-				r = findComment(remain);
-			}
-			
-			return { 'remain': remain,
-				'comentStart': r.found && r.end == -1,
-				'start':r.start
-				};
-		}
-		
-		function findComment(s){
-			var i = s.indexOf('/*');
-			if(i!=-1){
-				var sub = s.substring(i, s.length);
-				var j = sub.indexOf('*/');
-				if(j!=-1){
-					return {'found':true, 'start':i, 'end':j};
+		// global _cmts
+		function findBlockComment(row, col, lines){
+			var i = row;
+			var j = col;
+			var len = lines.length;
+			while(i<len){
+				var head = findCommentHead(i, j, lines);
+				if(head){
+					var cmt = findCommentTail(i, head.beginCol, lines); 
+					if(!cmt){
+						return false;
+					}else{
+						_cmts.push(cmt);
+						return findBlockComment(cmt.endRow, cmt.endCol+2, lines);
+					}
 				}else{
-					return {'found':true, 'start':i, 'end':-1};
+					i++;
 				}
-			}else{
-				return {'found':false, 'start':-1, 'end':-1};
 			}
 		}
 		
-		function isMultiCommentStart(line){
-			var s = ltrim(line);
-			if(s.length >= 2){
-				return s[0]=='/' && s[1] == '*';
-			}else{
-				return false;
+		function rmBlockComments(lines){
+			for(var i=_cmts.length-1; i>=0; i--){
+				var cmt = _cmts[i];
+				var line = lines[cmt.beginRow];
+				if(cmt.beginRow == cmt.endRow){
+					lines[cmt.beginRow] = line.substring(0, cmt.beginCol) + line.substring(cmt.endCol+2, line.length);
+				}else{
+					lines[cmt.beginRow] = line.substring(0, cmt.beginCol);
+					for(var r=cmt.beginRow+1; r<cmt.endRow; r++){
+						lines[r] = '';
+					}
+					line = lines[cmt.endRow];
+					lines[cmt.endRow] = line.substring(cmt.endCol+2, line.length);
+				}
 			}
-		} 
-		
-		function isMultiCommentEnd(line){
-
-		}
-		
-		function isSingleLineComment(line){
-			var s = ltrim(line);
-			if( s.length >=2 ){
-				return s[0]=='/' && s[1] == '/';
-			}else{
-				return false;
-			}
+			return lines;
 		}
 		
 		
